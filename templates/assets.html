@@ -1,0 +1,463 @@
+﻿
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Asset Management | Employee Lifecycle</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f6fa; font-family: Arial, sans-serif; }
+        .sidebar { background: #172b4d; min-height: 100vh; padding: 25px 15px; }
+        .sidebar h4 { color: white; margin-bottom: 25px; }
+        .sidebar a { display: block; color: #dce5f3; text-decoration: none; padding: 11px; border-radius: 6px; margin-bottom: 5px; }
+        .sidebar a:hover, .sidebar a.active { background: #315b91; color: white; }
+        .main { padding: 28px; }
+        .card { border: 0; border-radius: 10px; box-shadow: 0 2px 10px #0000000d; margin-bottom: 22px; }
+        .card-header { background: white; font-weight: bold; padding: 17px; }
+        .table th { background: #eef2f8; white-space: nowrap; }
+        .table td { vertical-align: middle; }
+        .section-title { color: #315b91; font-weight: 700; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="row">
+
+        <aside class="col-md-2 sidebar">
+            <h4>Employee Lifecycle</h4>
+            <a href="/api/dashboard/ui/">Dashboard</a>
+            <a href="/api/employees/ui/">Employees</a>
+            <a href="/api/onboarding/ui/">Onboarding</a>
+            <a href="/api/offboarding/ui/">Offboarding</a>
+            <a href="/api/tasks/ui/">Tasks</a>
+            <a href="/api/assets/ui/" class="active">Assets</a>
+            <a href="/api/access/ui/">Access Management</a>
+        </aside>
+
+        <main class="col-md-10 main">
+            <h2 class="section-title">Asset Management</h2>
+            <p class="text-muted">Manage company assets, assignments and returns.</p>
+
+            <div id="message"></div>
+
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">Add New Asset</div>
+                        <div class="card-body">
+                            <form id="assetForm">
+                                <div class="mb-3">
+                                    <label class="form-label">Asset ID</label>
+                                    <input class="form-control" name="asset_id" required maxlength="20">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Asset Name</label>
+                                    <input class="form-control" name="asset_name" required maxlength="100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Asset Type</label>
+                                    <select class="form-select" name="asset_type" required>
+                                        <option value="">Select type</option>
+                                        <option value="LAPTOP">Laptop</option>
+                                        <option value="MONITOR">Monitor</option>
+                                        <option value="KEYBOARD">Keyboard</option>
+                                        <option value="MOUSE">Mouse</option>
+                                        <option value="ID_CARD">ID Card</option>
+                                        <option value="PHONE">Mobile Phone</option>
+                                        <option value="OTHER">Other</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Serial Number</label>
+                                    <input class="form-control" name="serial_number" required maxlength="100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Purchase Date</label>
+                                    <input type="date" class="form-control" name="purchase_date" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Status</label>
+                                    <select class="form-select" name="status">
+                                        <option value="AVAILABLE">Available</option>
+                                        <option value="UNDER_MAINTENANCE">Under Maintenance</option>
+                                        <option value="RETIRED">Retired</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-primary" type="submit">Add Asset</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">Assign Asset to Employee</div>
+                        <div class="card-body">
+                            <form id="assignmentForm">
+                                <div class="mb-3">
+                                    <label class="form-label">Assignment ID</label>
+                                    <input class="form-control" name="assignment_id" required maxlength="20">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Select Asset</label>
+                                    <select class="form-select" name="asset" id="assetSelect" required>
+                                        <option value="">Loading assets...</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Select Employee</label>
+                                    <select class="form-select" name="employee" id="employeeSelect" required>
+                                        <option value="">Loading employees...</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Assigned Date</label>
+                                    <input type="date" class="form-control" name="assigned_date" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Condition on Assignment</label>
+                                    <select class="form-select" name="condition_on_assignment">
+                                        <option value="EXCELLENT">Excellent</option>
+                                        <option value="GOOD" selected>Good</option>
+                                        <option value="DAMAGED">Damaged</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-success" type="submit">Assign Asset</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Asset Inventory</div>
+                <div class="card-body">
+                    <input id="assetSearch" class="form-control mb-3" placeholder="Search assets by ID, name or serial number">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Asset ID</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Serial Number</th>
+                                    <th>Purchase Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assetTable">
+                                <tr><td colspan="6">Loading assets...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Assignment History & Returns</div>
+                <div class="card-body">
+                    <input id="assignmentSearch" class="form-control mb-3" placeholder="Search assignment ID, asset or employee">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Assignment ID</th>
+                                    <th>Asset ID</th>
+                                    <th>Employee ID</th>
+                                    <th>Assigned Date</th>
+                                    <th>Returned Date</th>
+                                    <th>Condition</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assignmentTable">
+                                <tr><td colspan="8">Loading assignments...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<script>
+const API = "/api";
+let allAssets = [];
+let allAssignments = [];
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(";").shift();
+    return "";
+}
+
+function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;",
+        '"': "&quot;", "'": "&#039;"
+    })[char]);
+}
+
+function showMessage(message, success = true) {
+    document.getElementById("message").innerHTML = `
+        <div class="alert ${success ? "alert-success" : "alert-danger"} alert-dismissible">
+            ${escapeHTML(message)}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+    window.scrollTo(0, 0);
+}
+
+async function request(url, options = {}) {
+    const response = await fetch(url, {
+        credentials: "same-origin",
+        ...options,
+        headers: {
+            ...(options.headers || {}),
+            "X-CSRFToken": getCookie("csrftoken")
+        }
+    });
+
+    const data = response.status === 204 ? null : await response.json();
+
+    if (!response.ok) {
+        let detail = data?.detail || data?.error || "";
+        if (!detail && data) {
+            detail = Object.entries(data)
+                .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`)
+                .join(" | ");
+        }
+        throw new Error(detail || `Request failed (${response.status})`);
+    }
+    return data;
+}
+
+async function getAll(url) {
+    let results = [];
+    while (url) {
+        const data = await request(url);
+        if (Array.isArray(data)) {
+            results = results.concat(data);
+            break;
+        }
+        results = results.concat(data.results || []);
+        url = data.next;
+    }
+    return results;
+}
+
+async function loadEmployees() {
+    const employees = await getAll(`${API}/employees/`);
+    const select = document.getElementById("employeeSelect");
+
+    select.innerHTML = '<option value="">Select employee</option>';
+
+    employees.filter(e => e.employment_status !== "TERMINATED").forEach(e => {
+        const option = document.createElement("option");
+        option.value = e.employee_id;
+        option.textContent = `${e.employee_id} - ${e.first_name} ${e.last_name}`;
+        select.appendChild(option);
+    });
+}
+
+async function loadAssets() {
+    allAssets = await getAll(`${API}/assets/`);
+    renderAssets();
+    updateAssetDropdown();
+}
+
+function updateAssetDropdown() {
+    const select = document.getElementById("assetSelect");
+    const available = allAssets.filter(a => a.status === "AVAILABLE");
+
+    select.innerHTML = '<option value="">Select available asset</option>';
+
+    available.forEach(a => {
+        const option = document.createElement("option");
+        option.value = a.asset_id;
+        option.textContent = `${a.asset_id} - ${a.asset_name}`;
+        select.appendChild(option);
+    });
+}
+
+function renderAssets() {
+    const search = document.getElementById("assetSearch").value.toLowerCase();
+
+    const filtered = allAssets.filter(a =>
+        [a.asset_id, a.asset_name, a.asset_type, a.serial_number, a.status]
+            .some(v => String(v ?? "").toLowerCase().includes(search))
+    );
+
+    const table = document.getElementById("assetTable");
+
+    if (!filtered.length) {
+        table.innerHTML = '<tr><td colspan="6" class="text-center">No assets found.</td></tr>';
+        return;
+    }
+
+    table.innerHTML = filtered.map(a => `
+        <tr>
+            <td>${escapeHTML(a.asset_id)}</td>
+            <td>${escapeHTML(a.asset_name)}</td>
+            <td>${escapeHTML(a.asset_type)}</td>
+            <td>${escapeHTML(a.serial_number)}</td>
+            <td>${escapeHTML(a.purchase_date)}</td>
+            <td>${escapeHTML(a.status)}</td>
+        </tr>
+    `).join("");
+}
+
+async function loadAssignments() {
+    allAssignments = await getAll(`${API}/asset-assignments/`);
+    renderAssignments();
+}
+
+function renderAssignments() {
+    const search = document.getElementById("assignmentSearch").value.toLowerCase();
+
+    const filtered = allAssignments.filter(a =>
+        [
+            a.assignment_id,
+            a.asset,
+            a.employee,
+            a.assigned_date,
+            a.returned_date,
+            a.condition_on_assignment,
+            a.condition_on_return,
+            a.is_returned ? "returned" : "assigned"
+        ].some(v => String(v ?? "").toLowerCase().includes(search))
+    );
+
+    const table = document.getElementById("assignmentTable");
+
+    if (!filtered.length) {
+        table.innerHTML = '<tr><td colspan="8" class="text-center">No assignments found.</td></tr>';
+        return;
+    }
+
+    table.innerHTML = filtered.map(a => `
+        <tr>
+            <td>${escapeHTML(a.assignment_id)}</td>
+            <td>${escapeHTML(a.asset)}</td>
+            <td>${escapeHTML(a.employee)}</td>
+            <td>${escapeHTML(a.assigned_date)}</td>
+            <td>${escapeHTML(a.returned_date || "-")}</td>
+            <td>${escapeHTML(a.is_returned ? (a.condition_on_return || "-") : a.condition_on_assignment)}</td>
+            <td>${a.is_returned
+                ? '<span class="badge bg-success">Returned</span>'
+                : '<span class="badge bg-warning text-dark">Assigned</span>'}</td>
+            <td>${a.is_returned
+                ? "-"
+                : `<button class="btn btn-sm btn-primary" onclick="returnAsset('${encodeURIComponent(a.assignment_id)}')">Return</button>`}
+            </td>
+        </tr>
+    `).join("");
+}
+
+document.getElementById("assetForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const form = new FormData(this);
+    const payload = Object.fromEntries(form.entries());
+
+    try {
+        await request(`${API}/assets/`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+
+        showMessage("Asset added successfully.");
+        this.reset();
+        await loadAssets();
+    } catch (error) {
+        showMessage(error.message, false);
+    }
+});
+
+document.getElementById("assignmentForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const form = new FormData(this);
+    const payload = Object.fromEntries(form.entries());
+
+    try {
+        await request(`${API}/asset-assignments/`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+
+        showMessage("Asset assigned successfully.");
+        this.reset();
+        await Promise.all([loadAssets(), loadAssignments()]);
+    } catch (error) {
+        showMessage(error.message, false);
+    }
+});
+
+async function returnAsset(encodedId) {
+    const assignmentId = decodeURIComponent(encodedId);
+    const assignment = allAssignments.find(a => a.assignment_id === assignmentId);
+
+    if (!assignment || assignment.is_returned) return;
+
+    const condition = prompt(
+        "Enter return condition: EXCELLENT, GOOD or DAMAGED",
+        "GOOD"
+    );
+
+    if (condition === null) return;
+
+    const validConditions = ["EXCELLENT", "GOOD", "DAMAGED"];
+    const normalized = condition.trim().toUpperCase();
+
+    if (!validConditions.includes(normalized)) {
+        showMessage("Please enter EXCELLENT, GOOD or DAMAGED.", false);
+        return;
+    }
+
+    try {
+        await request(`${API}/asset-assignments/${encodeURIComponent(assignmentId)}/`, {
+            method: "PATCH",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                is_returned: true,
+                condition_on_return: normalized
+            })
+        });
+
+        showMessage("Asset returned successfully. Asset is now available.");
+        await Promise.all([loadAssets(), loadAssignments()]);
+    } catch (error) {
+        showMessage(error.message, false);
+    }
+}
+
+document.getElementById("assetSearch").addEventListener("input", renderAssets);
+document.getElementById("assignmentSearch").addEventListener("input", renderAssignments);
+
+async function initialize() {
+    try {
+        await Promise.all([
+            loadEmployees(),
+            loadAssets(),
+            loadAssignments()
+        ]);
+    } catch (error) {
+        showMessage("Could not load data: " + error.message, false);
+    }
+}
+
+initialize();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

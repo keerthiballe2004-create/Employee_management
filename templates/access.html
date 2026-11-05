@@ -1,0 +1,392 @@
+﻿
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Access Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f6fa; font-family: Arial, sans-serif; }
+        .sidebar { background: #172b4d; min-height: 100vh; padding: 25px 15px; }
+        .sidebar h4 { color: white; margin-bottom: 25px; }
+        .sidebar a { display: block; color: #dce5f3; text-decoration: none; padding: 11px; border-radius: 6px; margin-bottom: 5px; }
+        .sidebar a:hover, .sidebar a.active { background: #315b91; color: white; }
+        .main { padding: 28px; }
+        .card { border: 0; border-radius: 10px; box-shadow: 0 2px 10px #0000000d; margin-bottom: 22px; }
+        .card-header { background: white; font-weight: bold; padding: 17px; }
+        .section-title { color: #315b91; font-weight: 700; }
+        .table th { background: #eef2f8; white-space: nowrap; }
+        .table td { vertical-align: middle; }
+        .action-btn { margin: 2px; }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+
+        <aside class="col-md-2 sidebar">
+            <h4>Employee Lifecycle</h4>
+            <a href="/api/dashboard/ui/">Dashboard</a>
+            <a href="/api/employees/ui/">Employees</a>
+            <a href="/api/onboarding/ui/">Onboarding</a>
+            <a href="/api/offboarding/ui/">Offboarding</a>
+            <a href="/api/tasks/ui/">Tasks</a>
+            <a href="/api/assets/ui/">Assets</a>
+            <a href="/api/access/ui/" class="active">Access Management</a>
+        </aside>
+
+        <main class="col-md-10 main">
+            <h2 class="section-title">Access Management</h2>
+            <p class="text-muted">Manage employee system access requests, approvals, activation and revocation.</p>
+
+            <div id="message"></div>
+
+            <div class="card">
+                <div class="card-header">Create Access Request</div>
+                <div class="card-body">
+                    <form id="accessForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Access ID</label>
+                                <input class="form-control" name="access_id" maxlength="20" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Employee</label>
+                                <select class="form-select" name="employee" id="employeeSelect" required>
+                                    <option value="">Loading employees...</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">System Name</label>
+                                <input class="form-control" name="system_name" maxlength="100" placeholder="Example: HR Portal" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Access Level</label>
+                                <input class="form-control" name="access_level" maxlength="100" placeholder="Example: Admin / Read Only" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Requested By</label>
+                                <input class="form-control" name="requested_by" maxlength="100" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Requested Date</label>
+                                <input type="date" class="form-control" name="requested_date" id="requestedDate" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Submit Access Request</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Employee Access Records</div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-8 mb-2">
+                            <input id="searchInput" class="form-control" placeholder="Search access ID, employee, system or access level">
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <select id="statusFilter" class="form-select">
+                                <option value="">All statuses</option>
+                                <option value="REQUESTED">Requested</option>
+                                <option value="APPROVED">Approved</option>
+                                <option value="ACTIVE">Active</option>
+                                <option value="REVOKED">Revoked</option>
+                                <option value="REJECTED">Rejected</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Access ID</th>
+                                    <th>Employee ID</th>
+                                    <th>System</th>
+                                    <th>Access Level</th>
+                                    <th>Requested By</th>
+                                    <th>Requested Date</th>
+                                    <th>Approved Date</th>
+                                    <th>Revoked Date</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accessTable">
+                                <tr><td colspan="10">Loading records...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted mb-0" id="recordCount"></p>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+const API = "/api";
+let allAccess = [];
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(";").shift();
+    return "";
+}
+
+function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+    })[char]);
+}
+
+function showMessage(message, success = true) {
+    document.getElementById("message").innerHTML = `
+        <div class="alert ${success ? "alert-success" : "alert-danger"} alert-dismissible">
+            ${escapeHTML(message)}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+    window.scrollTo(0, 0);
+}
+
+async function apiRequest(url, options = {}) {
+    const response = await fetch(url, {
+        credentials: "same-origin",
+        ...options,
+        headers: {
+            ...(options.headers || {}),
+            "X-CSRFToken": getCookie("csrftoken")
+        }
+    });
+
+    const data = response.status === 204 ? null : await response.json();
+
+    if (!response.ok) {
+        let detail = data?.detail || data?.error || "";
+
+        if (!detail && data) {
+            detail = Object.entries(data)
+                .map(([key, value]) =>
+                    `${key}: ${Array.isArray(value) ? value.join(", ") : value}`
+                ).join(" | ");
+        }
+
+        throw new Error(detail || `Request failed (${response.status})`);
+    }
+
+    return data;
+}
+
+async function getAll(url) {
+    let results = [];
+
+    while (url) {
+        const data = await apiRequest(url);
+
+        if (Array.isArray(data)) {
+            results = results.concat(data);
+            break;
+        }
+
+        results = results.concat(data.results || []);
+        url = data.next;
+    }
+
+    return results;
+}
+
+async function loadEmployees() {
+    const employees = await getAll(`${API}/employees/`);
+    const select = document.getElementById("employeeSelect");
+
+    select.innerHTML = '<option value="">Select employee</option>';
+
+    employees
+        .filter(employee => employee.employment_status !== "TERMINATED")
+        .forEach(employee => {
+            const option = document.createElement("option");
+            option.value = employee.employee_id;
+            option.textContent =
+                `${employee.employee_id} - ${employee.first_name} ${employee.last_name}`;
+            select.appendChild(option);
+        });
+}
+
+async function loadAccess() {
+    allAccess = await getAll(`${API}/access/`);
+    renderAccess();
+}
+
+function getStatusBadge(status) {
+    const styles = {
+        REQUESTED: "bg-warning text-dark",
+        APPROVED: "bg-info text-dark",
+        ACTIVE: "bg-success",
+        REVOKED: "bg-secondary",
+        REJECTED: "bg-danger"
+    };
+
+    return `<span class="badge ${styles[status] || "bg-secondary"}">${escapeHTML(status)}</span>`;
+}
+
+function renderAccess() {
+    const search = document.getElementById("searchInput").value.toLowerCase();
+    const status = document.getElementById("statusFilter").value;
+
+    const filtered = allAccess.filter(item => {
+        const matchesSearch = [
+            item.access_id,
+            item.employee,
+            item.system_name,
+            item.access_level,
+            item.requested_by
+        ].some(value => String(value ?? "").toLowerCase().includes(search));
+
+        return matchesSearch && (!status || item.status === status);
+    });
+
+    const table = document.getElementById("accessTable");
+
+    document.getElementById("recordCount").textContent =
+        `Showing ${filtered.length} of ${allAccess.length} access record(s).`;
+
+    if (!filtered.length) {
+        table.innerHTML = '<tr><td colspan="10" class="text-center">No access records found.</td></tr>';
+        return;
+    }
+
+    table.innerHTML = filtered.map(item => {
+        let actions = "";
+
+        if (item.status === "REQUESTED") {
+            actions = `
+                <button class="btn btn-sm btn-info action-btn"
+                    onclick="changeStatus('${encodeURIComponent(item.access_id)}','APPROVED')">
+                    Approve
+                </button>
+                <button class="btn btn-sm btn-danger action-btn"
+                    onclick="changeStatus('${encodeURIComponent(item.access_id)}','REJECTED')">
+                    Reject
+                </button>`;
+        } else if (item.status === "APPROVED") {
+            actions = `
+                <button class="btn btn-sm btn-success action-btn"
+                    onclick="changeStatus('${encodeURIComponent(item.access_id)}','ACTIVE')">
+                    Activate
+                </button>
+                <button class="btn btn-sm btn-danger action-btn"
+                    onclick="changeStatus('${encodeURIComponent(item.access_id)}','REVOKED')">
+                    Revoke
+                </button>`;
+        } else if (item.status === "ACTIVE") {
+            actions = `
+                <button class="btn btn-sm btn-danger action-btn"
+                    onclick="changeStatus('${encodeURIComponent(item.access_id)}','REVOKED')">
+                    Revoke
+                </button>`;
+        } else {
+            actions = "-";
+        }
+
+        return `
+            <tr>
+                <td>${escapeHTML(item.access_id)}</td>
+                <td>${escapeHTML(item.employee)}</td>
+                <td>${escapeHTML(item.system_name)}</td>
+                <td>${escapeHTML(item.access_level)}</td>
+                <td>${escapeHTML(item.requested_by)}</td>
+                <td>${escapeHTML(item.requested_date)}</td>
+                <td>${escapeHTML(item.approved_date || "-")}</td>
+                <td>${escapeHTML(item.revoked_date || "-")}</td>
+                <td>${getStatusBadge(item.status)}</td>
+                <td>${actions}</td>
+            </tr>`;
+    }).join("");
+}
+
+document.getElementById("accessForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const form = new FormData(this);
+    const payload = Object.fromEntries(form.entries());
+
+    payload.status = "REQUESTED";
+
+    try {
+        await apiRequest(`${API}/access/`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+
+        showMessage("Access request submitted successfully.");
+        this.reset();
+        document.getElementById("requestedDate").value =
+            new Date().toISOString().slice(0, 10);
+
+        await loadAccess();
+    } catch (error) {
+        showMessage(error.message, false);
+    }
+});
+
+async function changeStatus(encodedId, newStatus) {
+    const accessId = decodeURIComponent(encodedId);
+
+    const confirmation = confirm(
+        `Are you sure you want to change ${accessId} to ${newStatus}?`
+    );
+
+    if (!confirmation) return;
+
+    try {
+        await apiRequest(`${API}/access/${encodeURIComponent(accessId)}/`, {
+            method: "PATCH",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({status: newStatus})
+        });
+
+        showMessage(`${accessId} status changed to ${newStatus}.`);
+        await loadAccess();
+    } catch (error) {
+        showMessage(error.message, false);
+    }
+}
+
+document.getElementById("searchInput").addEventListener("input", renderAccess);
+document.getElementById("statusFilter").addEventListener("change", renderAccess);
+
+async function initialize() {
+    document.getElementById("requestedDate").value =
+        new Date().toISOString().slice(0, 10);
+
+    try {
+        await Promise.all([
+            loadEmployees(),
+            loadAccess()
+        ]);
+    } catch (error) {
+        showMessage("Could not load data: " + error.message, false);
+    }
+}
+
+initialize();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

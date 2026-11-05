@@ -1,0 +1,465 @@
+﻿
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Directory | Employee Lifecycle</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            margin: 0;
+            background: #f4f6fa;
+            font-family: Arial, sans-serif;
+        }
+
+        .sidebar {
+            width: 240px;
+            min-height: 100vh;
+            background: #172b4d;
+            position: fixed;
+            padding: 25px 15px;
+            color: white;
+        }
+
+        .sidebar h4 {
+            margin-bottom: 30px;
+        }
+
+        .sidebar a {
+            display: block;
+            color: #dce4f2;
+            text-decoration: none;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 7px;
+        }
+
+        .sidebar a:hover,
+        .sidebar a.active {
+            background: #315b91;
+            color: white;
+        }
+
+        .main {
+            margin-left: 240px;
+            padding: 35px;
+        }
+
+        .content-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,.06);
+        }
+
+        .table th {
+            background: #edf2f8;
+            white-space: nowrap;
+        }
+
+        .table td {
+            vertical-align: middle;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .ACTIVE {
+            background: #d8f5e3;
+            color: #14733c;
+        }
+
+        .TERMINATED {
+            background: #ffe0e0;
+            color: #b42318;
+        }
+
+        .ON_LEAVE {
+            background: #fff0c2;
+            color: #8a6100;
+        }
+
+        .pagination-btn {
+            min-width: 90px;
+        }
+
+        @media(max-width: 768px) {
+            .sidebar {
+                position: static;
+                width: 100%;
+                min-height: auto;
+            }
+
+            .main {
+                margin-left: 0;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h4>Employee Lifecycle</h4>
+
+    <a href="/api/dashboard/ui/">Dashboard</a>
+    <a class="active" href="/api/employees/ui/">Employees</a>
+    <a href="/api/onboarding/ui/">Onboarding</a>
+    <a href="/api/offboarding/ui/">Offboarding</a>
+    <a href="/api/tasks/ui/">Tasks</a>
+    <a href="/api/assets/ui/">Assets</a>
+    <a href="/api/access/ui/">Access Management</a>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+    <h2>Employee Directory</h2>
+    <p class="text-muted">Manage and view employee information.</p>
+
+    <div class="content-card mt-4">
+
+        <!-- HEADER AND SEARCH -->
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+
+            <div>
+                <h5 class="mb-1">All Employees</h5>
+                <small class="text-muted" id="employeeCount">
+                    Loading employees...
+                </small>
+            </div>
+
+            <input
+                type="text"
+                id="searchInput"
+                class="form-control"
+                placeholder="Search employees..."
+                style="max-width:300px;"
+            >
+
+        </div>
+
+        <!-- EMPLOYEE TABLE -->
+        <div class="table-responsive">
+
+            <table class="table table-hover">
+
+                <thead>
+                    <tr>
+                        <th>Employee ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Department</th>
+                        <th>Role</th>
+                        <th>Hire Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody id="employeeTable">
+
+                    <tr>
+                        <td colspan="7" class="text-center">
+                            Loading employees...
+                        </td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        <!-- PAGINATION -->
+        <div class="d-flex justify-content-between align-items-center mt-3">
+
+            <button
+                class="btn btn-outline-primary btn-sm pagination-btn"
+                id="previousBtn"
+                disabled
+            >
+                Previous
+            </button>
+
+            <span id="pageInfo" class="text-muted"></span>
+
+            <button
+                class="btn btn-outline-primary btn-sm pagination-btn"
+                id="nextBtn"
+                disabled
+            >
+                Next
+            </button>
+
+        </div>
+
+        <p id="errorMessage" class="text-danger mt-3"></p>
+
+    </div>
+
+</div>
+
+<script>
+
+    const API_URL = "/api/employees/";
+
+    let employees = [];
+    let filteredEmployees = [];
+
+    let currentPage = 1;
+    const pageSize = 2;
+
+
+    // ESCAPE HTML CONTENT
+    function escapeHTML(value) {
+
+        return String(value ?? "").replace(/[&<>"']/g, char => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        })[char]);
+
+    }
+
+
+    // LOAD ALL EMPLOYEES FROM PAGINATED API
+    async function loadEmployees() {
+
+        const table = document.getElementById("employeeTable");
+
+        try {
+
+            employees = [];
+
+            let url = API_URL;
+
+            // Fetch every API page
+            while (url) {
+
+                const response = await fetch(url);
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        "Unable to load employees. HTTP " + response.status
+                    );
+
+                }
+
+                const data = await response.json();
+
+                if (Array.isArray(data)) {
+
+                    employees.push(...data);
+                    url = null;
+
+                } else {
+
+                    employees.push(...(data.results || []));
+                    url = data.next;
+
+                }
+
+            }
+
+            filteredEmployees = [...employees];
+
+            currentPage = 1;
+
+            renderEmployees();
+
+        } catch (error) {
+
+            table.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-danger">
+                        ${escapeHTML(error.message)}
+                    </td>
+                </tr>
+            `;
+
+            document.getElementById("employeeCount").textContent =
+                "Could not load employee records";
+
+            document.getElementById("errorMessage").textContent =
+                error.message;
+
+        }
+
+    }
+
+
+    // DISPLAY EMPLOYEES
+    function renderEmployees() {
+
+        const table = document.getElementById("employeeTable");
+
+        const totalPages = Math.max(
+            1,
+            Math.ceil(filteredEmployees.length / pageSize)
+        );
+
+        if (currentPage > totalPages) {
+
+            currentPage = totalPages;
+
+        }
+
+        const start = (currentPage - 1) * pageSize;
+
+        const pageEmployees = filteredEmployees.slice(
+            start,
+            start + pageSize
+        );
+
+
+        if (pageEmployees.length === 0) {
+
+            table.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted">
+                        No employees found.
+                    </td>
+                </tr>
+            `;
+
+        } else {
+
+            table.innerHTML = pageEmployees.map(emp => `
+
+                <tr>
+
+                    <td>${escapeHTML(emp.employee_id)}</td>
+
+                    <td>
+                        ${escapeHTML(emp.first_name)}
+                        ${escapeHTML(emp.last_name)}
+                    </td>
+
+                    <td>${escapeHTML(emp.email)}</td>
+
+                    <td>${escapeHTML(emp.department)}</td>
+
+                    <td>${escapeHTML(emp.role)}</td>
+
+                    <td>${escapeHTML(emp.hire_date)}</td>
+
+                    <td>
+                        <span class="status ${escapeHTML(emp.employment_status)}">
+                            ${escapeHTML(emp.employment_status)}
+                        </span>
+                    </td>
+
+                </tr>
+
+            `).join("");
+
+        }
+
+
+        // EMPLOYEE COUNT
+        document.getElementById("employeeCount").textContent =
+            `${filteredEmployees.length} employee(s)`;
+
+
+        // PAGE INFORMATION
+        document.getElementById("pageInfo").textContent =
+            `Page ${currentPage} of ${totalPages}`;
+
+
+        // BUTTON STATES
+        document.getElementById("previousBtn").disabled =
+            currentPage === 1;
+
+        document.getElementById("nextBtn").disabled =
+            currentPage === totalPages;
+
+    }
+
+
+    // SEARCH EMPLOYEES
+    document.getElementById("searchInput").addEventListener(
+        "input",
+        function () {
+
+            const query = this.value.toLowerCase().trim();
+
+            filteredEmployees = employees.filter(emp => {
+
+                const searchable = [
+
+                    emp.employee_id,
+                    emp.first_name,
+                    emp.last_name,
+                    emp.email,
+                    emp.department,
+                    emp.role,
+                    emp.employment_status
+
+                ].join(" ").toLowerCase();
+
+                return searchable.includes(query);
+
+            });
+
+            currentPage = 1;
+
+            renderEmployees();
+
+        }
+    );
+
+
+    // PREVIOUS PAGE
+    document.getElementById("previousBtn").addEventListener(
+        "click",
+        function () {
+
+            if (currentPage > 1) {
+
+                currentPage--;
+
+                renderEmployees();
+
+            }
+
+        }
+    );
+
+
+    // NEXT PAGE
+    document.getElementById("nextBtn").addEventListener(
+        "click",
+        function () {
+
+            if (currentPage * pageSize < filteredEmployees.length) {
+
+                currentPage++;
+
+                renderEmployees();
+
+            }
+
+        }
+    );
+
+
+    // INITIAL LOAD
+    loadEmployees();
+
+</script>
+
+</body>
+</html>
+

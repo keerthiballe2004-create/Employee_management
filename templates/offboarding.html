@@ -1,0 +1,299 @@
+﻿
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Offboarding</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f6fa; font-family: Arial, sans-serif; }
+        .sidebar { background: #172b4d; min-height: 100vh; padding: 25px 15px; }
+        .sidebar h4 { color: white; margin-bottom: 30px; }
+        .sidebar a { display: block; color: #dce5f2; text-decoration: none; padding: 12px; border-radius: 6px; margin-bottom: 7px; }
+        .sidebar a:hover, .sidebar a.active { background: #315b91; color: white; }
+        .main { padding: 30px; }
+        .panel { background: white; padding: 24px; border-radius: 10px; box-shadow: 0 2px 10px #0000000d; margin-bottom: 25px; }
+        .table th { background: #edf2f8; }
+        .status { font-weight: 600; }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <aside class="col-md-2 sidebar">
+            <h4>Employee Lifecycle</h4>
+            <a href="/api/dashboard/ui/">Dashboard</a>
+            <a href="/api/employees/ui/">Employees</a>
+            <a href="/api/onboarding/ui/">Onboarding</a>
+            <a href="/api/offboarding/ui/" class="active">Offboarding</a>
+            <a href="/api/tasks/ui/">Tasks</a>
+            <a href="/api/assets/ui/">Assets</a>
+            <a href="/api/access/ui/">Access Management</a>
+        </aside>
+
+        <main class="col-md-10 main">
+            <h2 class="mb-2">Employee Offboarding</h2>
+            <p class="text-muted mb-4">Manage employee exits and track offboarding progress.</p>
+
+            <div class="panel">
+                <h5 class="mb-3">Create Offboarding Case</h5>
+                <div id="message"></div>
+
+                <form id="offboardingForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Offboarding ID</label>
+                            <input type="text" id="offboardingId" class="form-control" placeholder="e.g. OFF006" required>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Employee</label>
+                            <select id="employee" class="form-select" required>
+                                <option value="">Select Employee</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Exit Date</label>
+                            <input type="date" id="exitDate" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Status</label>
+                            <select id="status" class="form-select">
+                                <option value="REQUESTED">Requested</option>
+                                <option value="APPROVAL_PENDING">Approval Pending</option>
+                                <option value="IN_PROGRESS">In Progress</option>
+                                <option value="ON_HOLD">On Hold</option>
+                                <option value="COMPLETED">Completed</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Reason for Leaving</label>
+                            <textarea id="reason" class="form-control" rows="3" placeholder="Enter reason for leaving" required></textarea>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Create Offboarding Case</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <h5 class="mb-0">All Offboarding Cases</h5>
+                    <input type="search" id="search" class="form-control" style="max-width:280px" placeholder="Search cases...">
+                </div>
+
+                <p id="count" class="text-muted">Loading cases...</p>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Offboarding ID</th>
+                                <th>Employee ID</th>
+                                <th>Exit Date</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="caseTable">
+                            <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h5>Automatic Offboarding Tasks</h5>
+                <p class="text-muted">Creating an offboarding case automatically generates tasks for:</p>
+                <ul class="mb-0">
+                    <li>HR â€“ Complete exit formalities and documentation</li>
+                    <li>IT â€“ Revoke company email and system access</li>
+                    <li>Facilities â€“ Collect company laptop and equipment</li>
+                </ul>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+const CASE_API = "/api/offboarding/";
+const EMPLOYEE_API = "/api/employees/";
+
+let cases = [];
+
+function getCookie(name) {
+    const cookies = document.cookie ? document.cookie.split(";") : [];
+    for (let cookie of cookies) {
+        cookie = cookie.trim();
+        if (cookie.startsWith(name + "=")) {
+            return decodeURIComponent(cookie.substring(name.length + 1));
+        }
+    }
+    return "";
+}
+
+async function fetchAll(url) {
+    let results = [];
+
+    while (url) {
+        const response = await fetch(url, { credentials: "same-origin" });
+
+        if (!response.ok) {
+            throw new Error("Unable to load data. HTTP " + response.status);
+        }
+
+        const data = await response.json();
+
+        if (Array.isArray(data)) {
+            results.push(...data);
+            url = null;
+        } else {
+            results.push(...(data.results || []));
+            url = data.next;
+        }
+    }
+
+    return results;
+}
+
+async function loadEmployees() {
+    const select = document.getElementById("employee");
+
+    try {
+        const employees = await fetchAll(EMPLOYEE_API);
+
+        select.innerHTML = '<option value="">Select Employee</option>';
+
+        employees.forEach(emp => {
+            if (emp.employment_status === "TERMINATED") return;
+
+            const option = document.createElement("option");
+            option.value = emp.employee_id;
+            option.textContent =
+                emp.employee_id + " - " + emp.first_name + " " + emp.last_name;
+
+            select.appendChild(option);
+        });
+    } catch (error) {
+        select.innerHTML = '<option value="">Unable to load employees</option>';
+        showMessage(error.message, "danger");
+    }
+}
+
+async function loadCases() {
+    try {
+        cases = await fetchAll(CASE_API);
+        renderCases();
+    } catch (error) {
+        document.getElementById("caseTable").innerHTML =
+            '<tr><td colspan="5" class="text-danger text-center">' +
+            error.message + '</td></tr>';
+        document.getElementById("count").textContent = "Could not load cases.";
+    }
+}
+
+function renderCases() {
+    const search = document.getElementById("search").value.toLowerCase();
+
+    const filtered = cases.filter(item =>
+        String(item.offboarding_id || "").toLowerCase().includes(search) ||
+        String(item.employee || "").toLowerCase().includes(search) ||
+        String(item.reason || "").toLowerCase().includes(search) ||
+        String(item.status || "").toLowerCase().includes(search)
+    );
+
+    document.getElementById("count").textContent =
+        filtered.length + " offboarding case(s)";
+
+    const table = document.getElementById("caseTable");
+    table.innerHTML = "";
+
+    if (filtered.length === 0) {
+        table.innerHTML =
+            '<tr><td colspan="5" class="text-center text-muted">No offboarding cases found.</td></tr>';
+        return;
+    }
+
+    filtered.forEach(item => {
+        const row = document.createElement("tr");
+
+        [
+            item.offboarding_id,
+            item.employee,
+            item.exit_date,
+            item.reason,
+            item.status
+        ].forEach(value => {
+            const cell = document.createElement("td");
+            cell.textContent = value ?? "";
+            row.appendChild(cell);
+        });
+
+        table.appendChild(row);
+    });
+}
+
+function showMessage(message, type) {
+    document.getElementById("message").innerHTML =
+        '<div class="alert alert-' + type + '">' + message + '</div>';
+}
+
+document.getElementById("search").addEventListener("input", renderCases);
+
+document.getElementById("offboardingForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const payload = {
+        offboarding_id: document.getElementById("offboardingId").value.trim(),
+        employee: document.getElementById("employee").value,
+        exit_date: document.getElementById("exitDate").value,
+        reason: document.getElementById("reason").value.trim(),
+        status: document.getElementById("status").value
+    };
+
+    try {
+        const response = await fetch(CASE_API, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken")
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            const errorText = typeof data === "object"
+                ? Object.entries(data).map(([key, value]) =>
+                    key + ": " + (Array.isArray(value) ? value.join(", ") : value)
+                  ).join(" | ")
+                : "Unable to create case.";
+
+            throw new Error(errorText);
+        }
+
+        showMessage(
+            "Offboarding case created successfully! HR, IT and Facilities tasks have been generated.",
+            "success"
+        );
+
+        this.reset();
+        await loadCases();
+
+    } catch (error) {
+        showMessage(error.message, "danger");
+    }
+});
+
+loadEmployees();
+loadCases();
+</script>
+</body>
+</html>
+
